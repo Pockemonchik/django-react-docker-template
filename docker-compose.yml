@@ -1,0 +1,72 @@
+version: '3.9'
+name: template-dev
+services:
+  client:
+      build: 
+        context: ./front
+        dockerfile: Dockerfile
+        args: 
+          - REACT_APP_API_URL="http://192.168.1.112:2000/api/"
+      ports:
+        - 3000:3000
+      volumes:
+        - ./front:/app
+        - /app/node_modules
+      env_file: 
+        - ./.env.dev
+      stdin_open: true
+      tty: true
+
+
+  api:
+    build: ./app
+    command: python manage.py runserver 0.0.0.0:2000
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./app/:/usr/src/app/
+    ports:
+      - 2000:2000
+    env_file: 
+      - ./.env.dev
+    depends_on:
+      - db_dev
+    restart: on-failure
+  
+  redis:
+    image: 'redis:alpine' 
+    hostname: redis
+
+  celery:
+      build: ./app
+      command: "celery -A config worker -l INFO -E"
+      depends_on:
+        - db_dev
+      restart: on-failure
+      env_file: 
+        - ./.env.dev
+      volumes:
+      - ./app/:/usr/src/app/
+
+  celery-beat:
+      build: ./app
+      command: "celery -A config beat -l INFO"
+      depends_on:
+        - db_dev
+      restart: on-failure
+      volumes:
+        - ./app/:/usr/src/app/
+      env_file: 
+        - ./.env.dev
+
+  db_dev:
+    image: postgres:13.0-alpine
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data_dev/
+    environment:
+      - POSTGRES_USER=django
+      - POSTGRES_PASSWORD=django
+      - POSTGRES_DB=django_dev
+
+volumes:
+  postgres_data_dev:

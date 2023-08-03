@@ -1,0 +1,10 @@
+**/env
+**/media
+**/ffmpeg
+
+/env
+/media
+/ffmpeg
+
+log*
+dump*

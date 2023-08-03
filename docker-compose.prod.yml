@@ -1,0 +1,101 @@
+version: '3.9'
+name: app
+services:
+  nginx:
+    build: ./nginx
+    image: app-nginx:19-07-23
+    restart: always
+    volumes:
+      - static_volume:/home/app/web/static
+      - media_volume:/home/app/web/media
+    ports:
+      - 2000:2000
+      - 3000:3000
+    depends_on:
+      - api
+    hostname: nginx
+
+  client:
+      build:
+        context: ./front
+        dockerfile: Dockerfile.prod
+        args: 
+          - REACT_APP_API_URL="http://192.168.0.241:2000/api/"
+      image: app-client:24-07-23
+      stdin_open: true 
+      restart: always
+      tty: true
+      env_file: 
+        - ./.env.prod
+      ports:
+        - 3001:3001
+
+# sudo docker tag redis:alpine localhost:5000/redis:alpine
+# sudo docker push localhost:5000/redis:alpine
+  api:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.prod 
+    image: app-api:24-07-23
+    command: gunicorn config.wappi:application --bind 0.0.0.0:2000 --workers 4 --threads 4
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./app/:/usr/src/app/
+      - static_volume:/home/app/web/static
+      - media_volume:/home/app/web/media
+    env_file: 
+      - ./.env.prod
+    depends_on:
+      - db
+    restart: always
+  
+  redis:
+    image: 'redis:alpine'
+    hostname: redis
+    restart: always
+
+  celery:
+      build: 
+        context: ./app
+        dockerfile: Dockerfile.prod
+      image: app-celery:19-07-23
+      command: 'celery -A config worker -l INFO'
+      depends_on:
+        - redis
+        - db   
+      restart: always
+      env_file: 
+        - ./.env.prod
+      volumes:
+      - ./app/:/usr/src/app/
+
+  celery-beat:
+      build: 
+        context: ./app
+        dockerfile: Dockerfile.prod
+      image: app-celery-beat:19-07-23
+      command: 'celery -A config beat -l INFO'
+      depends_on:
+        - redis
+        - db
+      restart: always
+      env_file: 
+        - ./.env.prod
+
+  db:
+    hostname: db
+    image: postgres:13.0-alpine
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    env_file:
+      - ./.env.prod.db
+
+  
+ 
+
+volumes:
+  postgres_data:
+  static_volume:
+  media_volume:

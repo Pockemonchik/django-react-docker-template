@@ -1,0 +1,20 @@
+#root {
+    width: 100vw;
+    height: 100vh;
+}
+
+.header {
+    max-height: 4vh;
+    display: flex;
+    justify-content: space-between;
+}
+
+.header_menu {
+    max-height: 5vh;
+    
+}
+
+
+
+
+

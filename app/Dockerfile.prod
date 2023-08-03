@@ -1,0 +1,84 @@
+###########
+# BUILDER #
+###########
+FROM python:3.9 as builder
+
+WORKDIR /usr/src/app
+
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# установка зависимостей
+RUN apt-get update \
+    && apt-get install -y virtualenv postgresql-client 
+RUN pip install --upgrade pip
+RUN virtualenv --python=/usr/bin/python3 --system-site-packages /virtenv
+RUN exit
+
+# установка зависимостей
+COPY ./requirements.txt .
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /usr/src/app/wheels -r requirements.txt
+
+
+#########
+# FINAL #
+#########
+FROM python:3.9
+
+# set work directory
+WORKDIR /usr/src/app
+
+# set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# install psycopg2 dependencies
+RUN apt-get update \
+    && apt-get install  -y gcc 
+
+
+
+RUN apt-get install -y virtualenv 
+RUN apt-get install -y postgresql-client
+
+# install dependencies
+RUN virtualenv --python=/usr/bin/python3 --system-site-packages /virtenv
+
+
+# создаем отдельного пользователя
+RUN addgroup --system app && adduser --system --group app
+
+# создаем директорию для пользователя
+RUN mkdir -p /home/app
+
+# создание каталога для приложения
+ENV HOME=/home/app
+ENV APP_HOME=/home/app/web
+RUN mkdir $APP_HOME
+RUN mkdir $APP_HOME/static
+RUN mkdir $APP_HOME/media
+RUN mkdir $APP_HOME/media/tmp
+WORKDIR $APP_HOME
+
+# установка зависимостей и копирование из builder
+
+COPY --from=builder /usr/src/app/wheels /wheels
+COPY --from=builder /usr/src/app/requirements.txt .
+RUN pip install --no-cache /wheels/*
+
+# копирование entrypoint-prod.sh
+COPY ./entrypoint.prod.sh $APP_HOME
+COPY ./worker-entrypoint.sh $APP_HOME
+RUN sed -i 's/\r$//g' $APP_HOME/entrypoint.prod.sh
+RUN sed -i 's/\r$//g' $APP_HOME/worker-entrypoint.sh
+# копирование проекта Django
+COPY . $APP_HOME
+
+# изменение прав для пользователя app
+RUN chown -R app:app $APP_HOME
+
+# изменение рабочего пользователя
+
+
+ENTRYPOINT ["sh", "entrypoint.prod.sh"]
+
